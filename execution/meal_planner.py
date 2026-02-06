@@ -24,17 +24,12 @@ import os
 import sys
 from pathlib import Path
 
-try:
-    from dotenv import load_dotenv
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from meal_config import load_config, load_env
 
-    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-except ImportError:
-    pass
+load_env()
 
 import anthropic
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from meal_config import load_config
 
 SYSTEM_PROMPT = """You are a meal planning assistant. You create practical, budget-conscious weekly meal plans.
 

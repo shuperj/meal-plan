@@ -24,15 +24,12 @@ import sys
 import time
 from pathlib import Path
 
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-except ImportError:
-    pass
-
-# Import our Kroger client
+# Import our modules
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from meal_config import load_env
+
+load_env()
+
 from kroger_api import KrogerClient
 
 # Kroger category → expected grocery categories mapping

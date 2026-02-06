@@ -36,12 +36,10 @@ import time
 import urllib.parse
 from pathlib import Path
 
-try:
-    from dotenv import load_dotenv
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from meal_config import load_env
 
-    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-except ImportError:
-    pass
+load_env()
 
 import requests
 

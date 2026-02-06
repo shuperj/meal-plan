@@ -48,6 +48,33 @@ FIELD_PROMPTS = {
 }
 
 
+def load_env():
+    """Load env vars from .env file and ~/.openclaw/openclaw.json skill config."""
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(env_file)
+    except ImportError:
+        pass
+
+    oc_config = Path.home() / ".openclaw" / "openclaw.json"
+    if oc_config.exists():
+        try:
+            config = json.loads(oc_config.read_text())
+            env_vars = (
+                config.get("skills", {})
+                .get("entries", {})
+                .get("meal-plan", {})
+                .get("env", {})
+            )
+            for key, value in env_vars.items():
+                if value and key not in os.environ:
+                    os.environ[key] = value
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+
 def load_config():
     """Load config with fallbacks: config.json > env vars (ZIP) > generic defaults."""
     config = dict(GENERIC_DEFAULTS)
