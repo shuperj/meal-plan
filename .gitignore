@@ -1,0 +1,28 @@
+# Environment and secrets
+.env
+credentials.json
+token.json
+service_account.json
+
+# Intermediate files (always regenerated)
+.tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
