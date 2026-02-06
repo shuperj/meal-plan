@@ -19,6 +19,7 @@ Output: JSON with resolved products and cart-ready items written to .tmp/grocery
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -34,31 +35,83 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from kroger_api import KrogerClient
 
+# Kroger category → expected grocery categories mapping
+_EXPECTED_KROGER_CATEGORIES = {
+    "produce": ["produce"],
+    "meat": ["meat", "seafood"],
+    "dairy": ["dairy", "eggs"],
+    "pantry": [
+        "baking goods",
+        "canned",
+        "packaged",
+        "condiments",
+        "sauces",
+        "pasta",
+        "grains",
+        "snacks",
+        "breakfast",
+        "spices",
+    ],
+    "frozen": ["frozen"],
+    "bakery": ["bakery"],
+}
+
+# Kroger categories that indicate non-food products
+_NON_FOOD_CATEGORIES = [
+    "health & beauty",
+    "personal care",
+    "cleaning",
+    "pet care",
+    "baby",
+    "pharmacy",
+    "household",
+    "office",
+    "floral",
+]
+
 
 def _score_product(product, item_name, category):
     """
     Score a product match. Higher is better.
     Penalizes irrelevant matches (e.g. dog food for "brown rice").
+    Uses Kroger metadata: categories, snapEligible, aisleLocations.
     """
     desc = (product.get("description") or "").lower()
     brand = (product.get("brand") or "").lower()
-    categories = [c.lower() for c in product.get("categories", [])]
+    kroger_cats = [c.lower() for c in product.get("categories", [])]
+    snap_eligible = product.get("snapEligible", True)
     name_lower = item_name.lower()
-    name_words = name_lower.split()
+    # Strip parentheses so "(fresh)" becomes "fresh" for word matching
+    name_clean = re.sub(r"[()]", "", name_lower).strip()
+    name_words = name_clean.split()
 
     score = 0
 
-    # Core: do all search words appear in the description?
+    # ── SNAP eligibility: strongest signal for "is this food?" ──
+    food_categories = {"produce", "meat", "dairy", "pantry", "frozen", "bakery"}
+    if category in food_categories and not snap_eligible:
+        score -= 100
+
+    # ── Kroger category validation ──
+    expected = _EXPECTED_KROGER_CATEGORIES.get(category, [])
+    if expected and kroger_cats:
+        if any(exp in kc for exp in expected for kc in kroger_cats):
+            score += 15
+    for nf_cat in _NON_FOOD_CATEGORIES:
+        if any(nf_cat in kc for kc in kroger_cats):
+            score -= 30
+
+    # ── Word matching ──
     matched_words = sum(1 for w in name_words if w in desc)
     score += matched_words * 10
 
     # Bonus: description starts with or closely matches the item name
-    if name_lower in desc:
+    if name_clean in desc:
         score += 20
-    if desc.startswith(name_lower) or desc.startswith(name_words[-1]):
+    if desc.startswith(name_clean) or desc.startswith(name_words[-1]):
         score += 10
 
-    # Penalize pet food, cleaning, baby, pharmacy products
+    # ── Junk signals in description/brand ──
     junk_signals = [
         "dog",
         "cat",
@@ -69,16 +122,56 @@ def _score_product(product, item_name, category):
         "detergent",
         "soap",
         "shampoo",
+        "conditioner",
+        "hair",
+        "beauty",
+        "body wash",
+        "lotion",
+        "skincare",
+        "cosmetic",
+        "toothpaste",
+        "mouthwash",
+        "deodorant",
         "diaper",
         "formula",
         "supplement",
         "vitamin",
+        "wellness shot",
+        "protein shake",
     ]
     for junk in junk_signals:
-        if junk in desc or junk in brand or any(junk in c for c in categories):
+        if junk in desc or junk in brand:
             score -= 50
 
-    # Penalize heavily processed / prepared items when searching for raw ingredients
+    # ── Beverage signals when searching for produce/pantry ingredients ──
+    if category in {"produce", "pantry", "meat", "dairy"}:
+        beverage_signals = [
+            "juice",
+            "blend",
+            "cold-pressed",
+            "smoothie",
+            "drink",
+            "soda",
+            "water",
+            "tea",
+            "coffee",
+            "lemonade",
+        ]
+        for sig in beverage_signals:
+            if sig in desc and sig not in name_lower:
+                score -= 20
+                break
+
+    # ── Freshness modifiers ──
+    if "fresh" in name_lower:
+        if any(x in desc for x in ["freeze dried", "frozen", "canned", "dried"]):
+            # Only penalize "dried" if it's standalone, not part of the item name
+            if "dried" not in name_lower:
+                score -= 15
+        if "fresh" in desc:
+            score += 10
+
+    # ── Penalize prepared items when searching for raw ingredients ──
     raw_categories = {"produce", "meat", "dairy", "pantry"}
     if category in raw_categories:
         prepared_signals = [
@@ -94,12 +187,24 @@ def _score_product(product, item_name, category):
             if sig in desc and sig not in name_lower:
                 score -= 10
 
-    # Prefer items with pricing
+    # ── Prefer items with pricing ──
     items_data = product.get("items", [{}])
     if items_data and items_data[0].get("price", {}).get("regular"):
         score += 5
 
     return score
+
+
+def _clean_search_query(item_name):
+    """
+    Normalize item names for better Kroger search results.
+    E.g. "ginger (fresh)" → "fresh ginger", "chicken thighs (boneless)" → "boneless chicken thighs"
+    """
+    match = re.match(r"^(.+?)\s*\((.+?)\)\s*$", item_name)
+    if match:
+        base, modifier = match.group(1).strip(), match.group(2).strip()
+        return f"{modifier} {base}"
+    return item_name
 
 
 def resolve_grocery_item(
@@ -109,8 +214,9 @@ def resolve_grocery_item(
     Search Kroger for a grocery item and return the best match with pricing.
     Returns dict with product info or None if not found.
     """
+    search_query = _clean_search_query(item_name)
     try:
-        result = client.search_products(item_name, location_id, limit=10)
+        result = client.search_products(search_query, location_id, limit=10)
         products = result.get("data", [])
     except Exception as e:
         print(f"  Warning: Search failed for '{item_name}': {e}", file=sys.stderr)
@@ -130,13 +236,15 @@ def resolve_grocery_item(
         if stock == "TEMPORARILY_OUT_OF_STOCK":
             continue
         score = _score_product(p, item_name, category)
-        scored.append((score, p, item_data))
+        price = item_data.get("price", {}).get("regular") or 999
+        scored.append((score, price, p, item_data))
 
     if not scored:
         return None
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    best_score, best_product, best_item = scored[0]
+    # Sort by score descending, then price ascending (cheaper wins ties)
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    best_score, _, best_product, best_item = scored[0]
 
     price_info = best_item.get("price", {})
     regular_price = price_info.get("regular")

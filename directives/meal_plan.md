@@ -73,6 +73,16 @@ python execution/kroger_api.py cart-add --items '[{"upc":"...","quantity":1},...
 - **Auth expired**: Prompt user to re-run `kroger_api.py auth`.
 - **Rate limits**: Kroger allows 10k product calls/day and 5k cart calls/day. The grocery list script adds 300ms delay between searches.
 
+## Product Matching Notes
+The grocery list builder uses a multi-signal scoring system to filter Kroger search results:
+- **SNAP eligibility**: Non-SNAP products are heavily penalized for food categories (eliminates beauty/household products).
+- **Kroger categories**: Products are validated against expected category (e.g. "produce" items should be in Kroger's Produce category). Non-food categories like "Health & Beauty" are penalized.
+- **Junk signals**: Known non-food keywords (pet, hair, conditioner, etc.) in description/brand trigger heavy penalties.
+- **Beverage filter**: Juice, smoothie, cold-pressed, etc. are penalized when searching for raw ingredients.
+- **Freshness modifiers**: "freeze dried" penalized when searching for "fresh" items.
+- **Query cleanup**: Parenthetical modifiers are moved to the front of the search query (e.g. "ginger (fresh)" → "fresh ginger") for better Kroger search results.
+- **Tie-breaking**: Same-score products are sorted by price (cheaper wins).
+
 ## First-Time Setup
 User must complete these one-time steps:
 1. Register app at developer.kroger.com
