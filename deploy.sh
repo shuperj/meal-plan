@@ -34,10 +34,10 @@ else
     TEMP_DIR=$(mktemp -d)
     cd "$TEMP_DIR"
 
-    # Use gh to clone sparse checkout (only what we need)
+    # Clone just the directories and files we need
     gh repo clone "${REPO}" meal-plan -- --depth=1 --filter=blob:none --sparse
     cd meal-plan
-    git sparse-checkout set execution references skills requirements.txt
+    git sparse-checkout set --skip-checks execution references skills requirements.txt
 
     SCRIPT_DIR="$TEMP_DIR/meal-plan"
 fi
