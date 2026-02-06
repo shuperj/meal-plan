@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+"""
+Grocery list builder: takes a meal plan, searches Kroger for each item,
+resolves to actual products with real prices, and builds a cart-ready list.
+
+Usage:
+    # From a meal plan JSON file
+    python grocery_list.py --plan .tmp/meal_plan.json
+
+    # With a specific store location
+    python grocery_list.py --plan .tmp/meal_plan.json --location 01400943
+
+    # Just resolve a simple item list
+    python grocery_list.py --items '["chicken breast 1.5 lb", "broccoli 2 cups"]' --location 01400943
+
+Output: JSON with resolved products and cart-ready items written to .tmp/grocery_cart.json
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
+
+# Import our Kroger client
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from kroger_api import KrogerClient
+
+
+def _score_product(product, item_name, category):
+    """
+    Score a product match. Higher is better.
+    Penalizes irrelevant matches (e.g. dog food for "brown rice").
+    """
+    desc = (product.get("description") or "").lower()
+    brand = (product.get("brand") or "").lower()
+    categories = [c.lower() for c in product.get("categories", [])]
+    name_lower = item_name.lower()
+    name_words = name_lower.split()
+
+    score = 0
+
+    # Core: do all search words appear in the description?
+    matched_words = sum(1 for w in name_words if w in desc)
+    score += matched_words * 10
+
+    # Bonus: description starts with or closely matches the item name
+    if name_lower in desc:
+        score += 20
+    if desc.startswith(name_lower) or desc.startswith(name_words[-1]):
+        score += 10
+
+    # Penalize pet food, cleaning, baby, pharmacy products
+    junk_signals = [
+        "dog",
+        "cat",
+        "pet",
+        "puppy",
+        "kitten",
+        "cleaner",
+        "detergent",
+        "soap",
+        "shampoo",
+        "diaper",
+        "formula",
+        "supplement",
+        "vitamin",
+    ]
+    for junk in junk_signals:
+        if junk in desc or junk in brand or any(junk in c for c in categories):
+            score -= 50
+
+    # Penalize heavily processed / prepared items when searching for raw ingredients
+    raw_categories = {"produce", "meat", "dairy", "pantry"}
+    if category in raw_categories:
+        prepared_signals = [
+            "cup",
+            "cups",
+            "kit",
+            "meal kit",
+            "seasoning mix",
+            "frozen dinner",
+            "tv dinner",
+        ]
+        for sig in prepared_signals:
+            if sig in desc and sig not in name_lower:
+                score -= 10
+
+    # Prefer items with pricing
+    items_data = product.get("items", [{}])
+    if items_data and items_data[0].get("price", {}).get("regular"):
+        score += 5
+
+    return score
+
+
+def resolve_grocery_item(
+    client, item_name, quantity, unit, location_id, category="other"
+):
+    """
+    Search Kroger for a grocery item and return the best match with pricing.
+    Returns dict with product info or None if not found.
+    """
+    try:
+        result = client.search_products(item_name, location_id, limit=10)
+        products = result.get("data", [])
+    except Exception as e:
+        print(f"  Warning: Search failed for '{item_name}': {e}", file=sys.stderr)
+        return None
+
+    if not products:
+        return None
+
+    # Score and rank all candidates
+    scored = []
+    for p in products:
+        items = p.get("items", [])
+        if not items:
+            continue
+        item_data = items[0]
+        stock = item_data.get("inventory", {}).get("stockLevel", "")
+        if stock == "TEMPORARILY_OUT_OF_STOCK":
+            continue
+        score = _score_product(p, item_name, category)
+        scored.append((score, p, item_data))
+
+    if not scored:
+        return None
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_product, best_item = scored[0]
+
+    price_info = best_item.get("price", {})
+    regular_price = price_info.get("regular")
+    promo_price = price_info.get("promo")
+
+    return {
+        "productId": best_product.get("productId"),
+        "upc": best_product.get("upc", best_product.get("productId")),
+        "description": best_product.get("description", ""),
+        "brand": best_product.get("brand", ""),
+        "size": best_item.get("size", ""),
+        "regular_price": regular_price,
+        "promo_price": promo_price,
+        "effective_price": promo_price if promo_price else regular_price,
+        "in_stock": True,
+        "fulfillment": best_item.get("fulfillment", {}),
+        "search_query": item_name,
+        "requested_quantity": quantity,
+        "requested_unit": unit,
+        "match_score": best_score,
+    }
+
+
+def build_grocery_cart(meal_plan_path, location_id, items_json=None):
+    """
+    Read a meal plan and resolve each grocery item to a Kroger product.
+    Returns a structured cart-ready list.
+    """
+    client = KrogerClient()
+
+    # If no location_id, find the nearest store
+    if not location_id:
+        zip_code = os.getenv("KROGER_ZIP", "48837")
+        print(f"Finding nearest Kroger to {zip_code}...", file=sys.stderr)
+        stores = client.find_stores(zip_code, limit=1)
+        store_list = stores.get("data", [])
+        if not store_list:
+            raise ValueError(f"No Kroger stores found near {zip_code}")
+        location_id = store_list[0]["locationId"]
+        store_name = store_list[0].get("name", "")
+        print(f"Using store: {store_name} (ID: {location_id})", file=sys.stderr)
+
+    # Load grocery items
+    if items_json:
+        grocery_items = [
+            {"item": i, "quantity": 1, "unit": "each"} for i in json.loads(items_json)
+        ]
+    elif meal_plan_path:
+        plan = json.loads(Path(meal_plan_path).read_text())
+        grocery_items = plan.get("grocery_list", [])
+    else:
+        raise ValueError("Provide --plan or --items")
+
+    # Resolve each item
+    resolved = []
+    not_found = []
+    total = 0
+
+    for idx, gi in enumerate(grocery_items):
+        item_name = gi.get("item", gi) if isinstance(gi, dict) else gi
+        quantity = gi.get("quantity", 1) if isinstance(gi, dict) else 1
+        unit = gi.get("unit", "each") if isinstance(gi, dict) else "each"
+        category = gi.get("category", "other") if isinstance(gi, dict) else "other"
+
+        print(
+            f"  [{idx + 1}/{len(grocery_items)}] Searching: {item_name}...",
+            file=sys.stderr,
+        )
+
+        product = resolve_grocery_item(
+            client, item_name, quantity, unit, location_id, category
+        )
+
+        if product:
+            product["category"] = category
+            product["cart_quantity"] = 1  # Default to 1 unit; user can adjust
+            if product["effective_price"]:
+                total += product["effective_price"]
+            resolved.append(product)
+        else:
+            not_found.append(
+                {
+                    "item": item_name,
+                    "quantity": quantity,
+                    "unit": unit,
+                    "category": category,
+                }
+            )
+
+        # Rate limit: Kroger allows 10k product calls/day, be polite
+        time.sleep(0.3)
+
+    result = {
+        "location_id": location_id,
+        "resolved_items": resolved,
+        "not_found": not_found,
+        "estimated_total": round(total, 2),
+        "item_count": len(resolved),
+        "missing_count": len(not_found),
+    }
+
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Build grocery cart from meal plan")
+    parser.add_argument("--plan", help="Path to meal plan JSON (from meal_planner.py)")
+    parser.add_argument("--items", help="JSON array of item strings to search")
+    parser.add_argument("--location", help="Kroger store location ID")
+    parser.add_argument(
+        "--output", help="Output file (default: .tmp/grocery_cart.json)"
+    )
+    args = parser.parse_args()
+
+    if not args.plan and not args.items:
+        default_plan = (
+            Path(__file__).resolve().parent.parent / ".tmp" / "meal_plan.json"
+        )
+        if default_plan.exists():
+            args.plan = str(default_plan)
+        else:
+            print("Provide --plan or --items", file=sys.stderr)
+            sys.exit(1)
+
+    location_id = args.location or os.getenv("KROGER_LOCATION_ID")
+
+    print("Building grocery cart...", file=sys.stderr)
+    cart = build_grocery_cart(args.plan, location_id, items_json=args.items)
+
+    output_path = (
+        Path(args.output)
+        if args.output
+        else (Path(__file__).resolve().parent.parent / ".tmp" / "grocery_cart.json")
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(cart, indent=2))
+
+    print(f"\nGrocery cart saved to {output_path}", file=sys.stderr)
+    print(
+        f"Resolved: {cart['item_count']} items | Missing: {cart['missing_count']} | Est. total: ${cart['estimated_total']}",
+        file=sys.stderr,
+    )
+
+    if cart["not_found"]:
+        print("\nItems not found (may need manual selection):", file=sys.stderr)
+        for nf in cart["not_found"]:
+            print(f"  - {nf['item']} ({nf['quantity']} {nf['unit']})", file=sys.stderr)
+
+    print(json.dumps(cart, indent=2))
+
+
+if __name__ == "__main__":
+    main()
