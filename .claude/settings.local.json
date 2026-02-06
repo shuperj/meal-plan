@@ -5,7 +5,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:www.postman.com)",
       "WebFetch(domain:publicapi.dev)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "mcp__acp__Edit",
+      "mcp__acp__Bash"
     ]
   }
 }

@@ -1,7 +1,7 @@
 ---
 name: meal-plan
 description: Plan weekly meals for a household with PCOS-friendly preferences, generate grocery lists with real Kroger prices, and add items to the Kroger cart for pickup. Triggered by /meal-plan.
-metadata: {"openclaw":{"requires":{"env":["KROGER_CLIENT_ID","KROGER_CLIENT_SECRET","ANTHROPIC_API_KEY"]},"primaryEnv":"KROGER_CLIENT_ID"}}
+metadata: {"openclaw":{"requires":{"env":["KROGER_CLIENT_ID","KROGER_CLIENT_SECRET","ANTHROPIC_API_KEY"],"bins":["python3"]},"primaryEnv":"KROGER_CLIENT_ID"},"install":[{"type":"uv","path":"requirements.txt"}]}
 ---
 
 # Meal Plan Skill
