@@ -92,7 +92,7 @@ else
     echo "✓ Dependencies installed (pip)"
 fi
 
-# Create .env template
+# Create .env template for standalone usage
 ENV_FILE="${INSTALL_DIR}/.env"
 if [[ ! -f "${ENV_FILE}" ]]; then
     echo ""
@@ -115,6 +115,47 @@ else
     echo "✓ .env already exists at ${ENV_FILE}"
 fi
 
+# Configure OpenClaw skill env vars in openclaw.json
+OC_CONFIG="${HOME}/.openclaw/openclaw.json"
+echo ""
+echo "Configuring OpenClaw skill environment..."
+if command -v python3 &> /dev/null; then
+    python3 - "${OC_CONFIG}" <<'PYEOF'
+import json, sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+config = {}
+if config_path.exists():
+    config = json.loads(config_path.read_text())
+
+# Ensure nested structure exists
+config.setdefault("skills", {}).setdefault("entries", {}).setdefault("meal-plan", {})
+entry = config["skills"]["entries"]["meal-plan"]
+entry.setdefault("enabled", True)
+entry.setdefault("env", {})
+
+required_vars = [
+    "KROGER_CLIENT_ID",
+    "KROGER_CLIENT_SECRET",
+    "KROGER_REDIRECT_URI",
+    "KROGER_REFRESH_TOKEN",
+    "KROGER_ZIP",
+    "KROGER_LOCATION_ID",
+    "ANTHROPIC_API_KEY",
+]
+for var in required_vars:
+    entry["env"].setdefault(var, "")
+
+config_path.parent.mkdir(parents=True, exist_ok=True)
+config_path.write_text(json.dumps(config, indent=2) + "\n")
+PYEOF
+    echo "✓ Added meal-plan entry to ${OC_CONFIG}"
+    echo "  Fill in your API keys: nano ${OC_CONFIG}"
+else
+    echo "⚠ python3 not found — manually add env vars to ${OC_CONFIG}"
+fi
+
 # Cleanup temp directory if we created one
 if [[ -n "${TEMP_DIR:-}" ]]; then
     rm -rf "$TEMP_DIR"
@@ -127,7 +168,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 PYTHON="${VENV_DIR}/bin/python"
 echo "Next steps:"
-echo "  1. Fill in API keys: nano ${ENV_FILE}"
+echo "  1. Add API keys to OpenClaw config: nano ${OC_CONFIG}"
+echo "     (fill in KROGER_CLIENT_ID, KROGER_CLIENT_SECRET, ANTHROPIC_API_KEY)"
 echo "  2. Configure household: ${PYTHON} ${INSTALL_DIR}/execution/meal_config.py setup"
 echo "  3. Run Kroger auth: ${PYTHON} ${INSTALL_DIR}/execution/kroger_api.py auth"
 echo "  4. Verify skill: openclaw skills list"
