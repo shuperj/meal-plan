@@ -75,16 +75,21 @@ if [[ -f "${SCRIPT_DIR}/requirements.txt" ]]; then
     echo "✓ Copied requirements.txt"
 fi
 
-# Install Python dependencies
+# Install Python dependencies in a venv
+VENV_DIR="${INSTALL_DIR}/.venv"
 echo ""
-echo "Installing Python dependencies with uv..."
+echo "Setting up Python virtual environment..."
 cd "${INSTALL_DIR}"
+if [[ ! -d "${VENV_DIR}" ]]; then
+    python3 -m venv "${VENV_DIR}"
+    echo "✓ Created venv at ${VENV_DIR}"
+fi
 if command -v uv &> /dev/null; then
-    uv pip install -r requirements.txt --system
-    echo "✓ Dependencies installed"
+    uv pip install -r requirements.txt -p "${VENV_DIR}/bin/python"
+    echo "✓ Dependencies installed (uv)"
 else
-    echo "⚠ uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
-    echo "  Then run: cd ${INSTALL_DIR} && uv pip install -r requirements.txt --system"
+    "${VENV_DIR}/bin/pip" install -r requirements.txt
+    echo "✓ Dependencies installed (pip)"
 fi
 
 # Create .env template
@@ -120,10 +125,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✓ Installation complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+PYTHON="${VENV_DIR}/bin/python"
 echo "Next steps:"
 echo "  1. Fill in API keys: nano ${ENV_FILE}"
-echo "  2. Configure household: python3 ${INSTALL_DIR}/execution/meal_config.py setup"
-echo "  3. Run Kroger auth: python3 ${INSTALL_DIR}/execution/kroger_api.py auth"
+echo "  2. Configure household: ${PYTHON} ${INSTALL_DIR}/execution/meal_config.py setup"
+echo "  3. Run Kroger auth: ${PYTHON} ${INSTALL_DIR}/execution/kroger_api.py auth"
 echo "  4. Verify skill: openclaw skills list"
 echo "  5. Use /meal-plan in OpenClaw to get started"
 echo ""
