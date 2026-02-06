@@ -1,6 +1,6 @@
 ---
 name: meal-plan
-description: Plan weekly meals for a household with PCOS-friendly preferences, generate grocery lists with real Kroger prices, and add items to the Kroger cart for pickup. Triggered by /meal-plan.
+description: Plan weekly meals, generate grocery lists with real Kroger prices, and add items to the Kroger cart for pickup. Triggered by /meal-plan.
 metadata: {"openclaw":{"requires":{"env":["KROGER_CLIENT_ID","KROGER_CLIENT_SECRET","ANTHROPIC_API_KEY"],"bins":["python3"]},"primaryEnv":"KROGER_CLIENT_ID"},"install":[{"type":"uv","path":"requirements.txt"}]}
 ---
 
@@ -8,23 +8,31 @@ metadata: {"openclaw":{"requires":{"env":["KROGER_CLIENT_ID","KROGER_CLIENT_SECR
 
 Plan weekly meals, build a grocery list, price it against Kroger, and draft a pickup cart.
 
-## Household Defaults
-- **ZIP:** 48837
-- **Household:** 2 adults + 1 child
-- **Dinners:** 5 weeknight dinners (Monday-Friday)
-- **Friday:** Always a crock-pot / slow-cooker meal
-- **Leftovers:** Each dinner should yield enough for next-day lunches
-- **Diet:** PCOS-friendly, higher-protein, lower-carb, anti-inflammatory
-- **Budget:** $120/week (adjustable)
+## Configuration
+
+Household preferences are stored in `config.json`. On first use, run setup:
+```bash
+python execution/meal_config.py setup
+```
+This prompts for: ZIP code, household size, number of meals, weekly budget, dietary preferences, Friday meal rule, and leftover strategy.
+
+To view current config: `python execution/meal_config.py show`
+To update a single value: `python execution/meal_config.py set budget 150`
 
 ## Workflow
 
 When the user says `/meal-plan` (or asks for meal planning help), follow these steps in order. **Stop and ask the user before proceeding to the next step.**
 
+**Before starting:** Check if `config.json` exists by running `python execution/meal_config.py show`. If key fields (ZIP, household) are empty, ask the user to run `python execution/meal_config.py setup` first, or collect their preferences and run it for them.
+
 ### 1. Generate Meal Plan
-Run the meal planner to produce a 5-dinner weekly plan:
+Run the meal planner (it reads defaults from `config.json`):
 ```bash
-python execution/meal_planner.py --budget <BUDGET> --meals <MEALS>
+python execution/meal_planner.py
+```
+Override any config values with CLI flags if the user requests changes:
+```bash
+python execution/meal_planner.py --budget <BUDGET> --meals <MEALS> --household "<DESC>"
 ```
 This outputs `.tmp/meal_plan.json` with recipes and an aggregated grocery list.
 
@@ -72,11 +80,10 @@ When the user shares a recipe (URL, text, or image):
 4. Optionally incorporate into the next meal plan
 
 ## First-Time Setup
-If Kroger API calls fail with auth errors:
-1. User needs to register at developer.kroger.com
-2. Set KROGER_CLIENT_ID and KROGER_CLIENT_SECRET in .env
-3. Run `python execution/kroger_api.py auth` and follow the OAuth flow
-4. This is one-time; refresh tokens are saved automatically
+1. Run `python execution/meal_config.py setup` to configure household preferences
+2. Register at developer.kroger.com and set KROGER_CLIENT_ID and KROGER_CLIENT_SECRET in .env
+3. Set ANTHROPIC_API_KEY in .env
+4. Run `python execution/kroger_api.py auth` and follow the OAuth flow (one-time; refresh tokens are saved automatically)
 
 ## Error Handling
 - **Item not found:** Try broader search terms, then suggest substitutes

@@ -7,7 +7,7 @@ Usage:
     python kroger_api.py auth
 
     # Find stores near a ZIP code
-    python kroger_api.py stores --zip 48837
+    python kroger_api.py stores --zip <ZIP>
 
     # Search products at a store
     python kroger_api.py search --query "chicken breast" --location 01400943
@@ -23,7 +23,7 @@ Environment:
     KROGER_CLIENT_SECRET   - App client secret
     KROGER_REDIRECT_URI    - OAuth redirect (default: http://localhost:8080/callback)
     KROGER_REFRESH_TOKEN   - User refresh token (for cart operations)
-    KROGER_ZIP             - Default ZIP code (default: 48837)
+    KROGER_ZIP             - Default ZIP code
     KROGER_LOCATION_ID     - Default store location ID
 """
 
@@ -308,7 +308,7 @@ def cmd_auth(args, client):
 
 def cmd_stores(args, client):
     """Find stores near ZIP."""
-    zip_code = args.zip or os.getenv("KROGER_ZIP", "48837")
+    zip_code = args.zip or os.getenv("KROGER_ZIP", "")
     result = client.find_stores(zip_code, radius_miles=args.radius, limit=args.limit)
     stores = result.get("data", [])
     if not stores:

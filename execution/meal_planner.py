@@ -33,26 +33,14 @@ except ImportError:
 
 import anthropic
 
-# ── Defaults ───────────────────────────────────────────────────────────
-
-DEFAULTS = {
-    "zip": "48837",
-    "household": "2 adults, 1 child",
-    "meals": 5,
-    "budget": 120,
-    "diet": "PCOS-friendly, higher-protein, lower-carb, avoid inflammatory foods",
-    "friday_rule": "Friday must be a crock-pot / slow-cooker meal",
-    "leftovers": "Plan enough for leftover lunches from each dinner",
-}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from meal_config import load_config
 
 SYSTEM_PROMPT = """You are a meal planning assistant. You create practical, budget-conscious weekly meal plans.
 
 Key rules:
-- Meals should be PCOS-friendly: higher protein, lower carb, anti-inflammatory
-- Prefer whole foods, lean proteins, healthy fats, non-starchy vegetables
-- Minimize refined carbs, added sugars, and highly processed foods
-- Friday dinner is always a crock-pot / slow-cooker recipe
-- Plan for leftovers to cover lunches
+- Follow the dietary preferences and meal rules provided by the user
+- Prefer whole foods, lean proteins, healthy fats, vegetables
 - Maximize ingredient overlap across meals to minimize waste and cost
 - Stay within the weekly budget
 
@@ -109,19 +97,24 @@ def generate_meal_plan(
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY is required")
 
-    budget = budget or DEFAULTS["budget"]
-    meals = meals or DEFAULTS["meals"]
-    household = household or DEFAULTS["household"]
-    zip_code = zip_code or DEFAULTS["zip"]
+    config = load_config()
+    budget = budget or config["budget"]
+    meals = meals or config["meals"]
+    household = household or config["household"]
+    zip_code = zip_code or config["zip"]
 
     user_msg = f"""Create a {meals}-meal weekly dinner plan.
 
 Household: {household}
 Budget: ${budget}/week
-Location ZIP: {zip_code}
-Diet: {DEFAULTS["diet"]}
-Friday rule: {DEFAULTS["friday_rule"]}
-Leftovers: {DEFAULTS["leftovers"]}"""
+Location ZIP: {zip_code}"""
+
+    if config["diet"]:
+        user_msg += f"\nDiet: {config['diet']}"
+    if config["friday_rule"]:
+        user_msg += f"\nFriday rule: {config['friday_rule']}"
+    if config["leftovers"]:
+        user_msg += f"\nLeftovers: {config['leftovers']}"
 
     if preferences:
         user_msg += f"\nAdditional preferences: {preferences}"
@@ -155,19 +148,19 @@ Leftovers: {DEFAULTS["leftovers"]}"""
 def main():
     parser = argparse.ArgumentParser(description="Generate weekly meal plan")
     parser.add_argument(
-        "--budget", type=float, help=f"Weekly budget (default: ${DEFAULTS['budget']})"
+        "--budget", type=float, help="Weekly budget (from config if not set)"
     )
     parser.add_argument(
-        "--meals", type=int, help=f"Number of dinners (default: {DEFAULTS['meals']})"
+        "--meals", type=int, help="Number of dinners (from config if not set)"
     )
     parser.add_argument(
-        "--household", help=f"Household description (default: {DEFAULTS['household']})"
+        "--household", help="Household description (from config if not set)"
     )
     parser.add_argument("--preferences", help="Additional dietary preferences")
     parser.add_argument(
         "--recipes-file", help="JSON file with saved recipes to incorporate"
     )
-    parser.add_argument("--zip", help=f"ZIP code (default: {DEFAULTS['zip']})")
+    parser.add_argument("--zip", help="ZIP code (from config if not set)")
     parser.add_argument("--output", help="Output file (default: .tmp/meal_plan.json)")
     args = parser.parse_args()
 

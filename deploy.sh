@@ -53,7 +53,7 @@ cp "${SCRIPT_DIR}/skills/meal-plan/SKILL.md" "${SKILL_DIR}/SKILL.md"
 echo "✓ Copied SKILL.md"
 
 # Copy execution scripts
-for script in kroger_api.py meal_planner.py grocery_list.py; do
+for script in kroger_api.py meal_planner.py grocery_list.py meal_config.py; do
     if [[ -f "${SCRIPT_DIR}/execution/${script}" ]]; then
         cp "${SCRIPT_DIR}/execution/${script}" "${INSTALL_DIR}/execution/${script}"
         chmod +x "${INSTALL_DIR}/execution/${script}"
@@ -96,7 +96,7 @@ KROGER_CLIENT_ID=
 KROGER_CLIENT_SECRET=
 KROGER_REDIRECT_URI=http://localhost:8080/callback
 KROGER_REFRESH_TOKEN=
-KROGER_ZIP=48837
+KROGER_ZIP=
 KROGER_LOCATION_ID=
 
 # Anthropic (for meal plan generation)
@@ -120,7 +120,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "Next steps:"
 echo "  1. Fill in API keys: nano ${ENV_FILE}"
-echo "  2. Run Kroger auth: python3 ${INSTALL_DIR}/execution/kroger_api.py auth"
-echo "  3. Verify skill: openclaw skills list"
-echo "  4. Use /meal-plan in OpenClaw to get started"
+echo "  2. Configure household: python3 ${INSTALL_DIR}/execution/meal_config.py setup"
+echo "  3. Run Kroger auth: python3 ${INSTALL_DIR}/execution/kroger_api.py auth"
+echo "  4. Verify skill: openclaw skills list"
+echo "  5. Use /meal-plan in OpenClaw to get started"
 echo ""

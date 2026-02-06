@@ -4,12 +4,13 @@
 Generate a weekly meal plan, build a grocery list, resolve items to real Kroger products with prices, and add approved items to the user's Kroger cart for pickup.
 
 ## Inputs
-- **Budget**: Weekly budget in dollars (default: $120)
-- **Meals**: Number of weeknight dinners (default: 5)
-- **Household**: Description (default: 2 adults, 1 child)
+All defaults are loaded from `config.json` (run `python execution/meal_config.py setup` to configure).
+- **Budget**: Weekly budget in dollars
+- **Meals**: Number of weeknight dinners
+- **Household**: Description
 - **Preferences**: Any additional dietary notes from user
 - **Recipes**: Optional saved recipes to incorporate (URLs, text, or file paths)
-- **ZIP code**: For store selection (default: 48837)
+- **ZIP code**: For store selection
 
 ## Tools / Scripts
 
@@ -24,7 +25,7 @@ Generate a weekly meal plan, build a grocery list, resolve items to real Kroger 
 
 ### Step 1: Generate Meal Plan
 ```bash
-python execution/meal_planner.py --budget 120 --meals 5
+python execution/meal_planner.py
 ```
 - Reads `references/pcos.md` for dietary guidance
 - Produces `.tmp/meal_plan.json` with 5 dinners + aggregated grocery list
@@ -32,7 +33,7 @@ python execution/meal_planner.py --budget 120 --meals 5
 
 ### Step 2: Find Store
 ```bash
-python execution/kroger_api.py stores --zip 48837
+python execution/kroger_api.py stores --zip <ZIP>
 ```
 - Returns nearby stores with location IDs
 - Use the closest store, or let user pick
@@ -85,7 +86,8 @@ The grocery list builder uses a multi-signal scoring system to filter Kroger sea
 
 ## First-Time Setup
 User must complete these one-time steps:
-1. Register app at developer.kroger.com
-2. Set `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` in `.env`
-3. Run `python execution/kroger_api.py auth` to authorize cart access
+1. Run `python execution/meal_config.py setup` to configure household preferences
+2. Register app at developer.kroger.com
+3. Set `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` in `.env`
 4. Set `ANTHROPIC_API_KEY` in `.env` for meal plan generation
+5. Run `python execution/kroger_api.py auth` to authorize cart access

@@ -277,7 +277,7 @@ def build_grocery_cart(meal_plan_path, location_id, items_json=None):
 
     # If no location_id, find the nearest store
     if not location_id:
-        zip_code = os.getenv("KROGER_ZIP", "48837")
+        zip_code = os.getenv("KROGER_ZIP", "")
         print(f"Finding nearest Kroger to {zip_code}...", file=sys.stderr)
         stores = client.find_stores(zip_code, limit=1)
         store_list = stores.get("data", [])
