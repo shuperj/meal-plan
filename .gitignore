@@ -23,6 +23,11 @@ venv/
 *.swp
 *.swo
 
+# Agent instructions (local only)
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+
 # OS
 .DS_Store
 Thumbs.db
