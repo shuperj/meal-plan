@@ -55,7 +55,7 @@ cp "${SCRIPT_DIR}/skills/meal-plan/SKILL.md" "${SKILL_DIR}/SKILL.md"
 echo "✓ Copied SKILL.md"
 
 # Copy execution scripts
-for script in kroger_api.py meal_planner.py grocery_list.py meal_config.py; do
+for script in kroger_api.py meal_planner.py grocery_list.py meal_config.py recipe_manager.py; do
     if [[ -f "${SCRIPT_DIR}/execution/${script}" ]]; then
         cp "${SCRIPT_DIR}/execution/${script}" "${INSTALL_DIR}/execution/${script}"
         chmod +x "${INSTALL_DIR}/execution/${script}"
@@ -108,6 +108,9 @@ KROGER_LOCATION_ID=
 
 # Anthropic (for meal plan generation)
 ANTHROPIC_API_KEY=
+
+# Recipe vault (Obsidian)
+RECIPE_VAULT_PATH=/home/scooper/Documents/ShuperBrain/30 Resources/Recipes
 EOF
     echo "✓ Created ${ENV_FILE}"
 else
@@ -143,6 +146,7 @@ required_vars = [
     "KROGER_ZIP",
     "KROGER_LOCATION_ID",
     "ANTHROPIC_API_KEY",
+    "RECIPE_VAULT_PATH",
 ]
 for var in required_vars:
     entry["env"].setdefault(var, "")

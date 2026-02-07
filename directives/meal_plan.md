@@ -9,22 +9,39 @@ All defaults are loaded from `config.json` (run `python execution/meal_config.py
 - **Meals**: Number of weeknight dinners
 - **Household**: Description
 - **Preferences**: Any additional dietary notes from user
-- **Recipes**: Optional saved recipes to incorporate (URLs, text, or file paths)
+- **Recipes**: Optional saved recipes from the Obsidian vault (`~/Documents/ShuperBrain/30 Resources/Recipes/`). Use `execution/recipe_manager.py list` to browse, `export` to select.
 - **ZIP code**: For store selection
 
 ## Tools / Scripts
 
 | Step | Script | Purpose |
 |------|--------|---------|
+| 0 | `execution/recipe_manager.py list` | List saved recipes from Obsidian vault |
+| 0 | `execution/recipe_manager.py export` | Export selected recipes as JSON for planner |
 | 1 | `execution/meal_planner.py` | Generate meal plan + grocery list via LLM |
 | 2 | `execution/kroger_api.py stores` | Find nearest Kroger store |
 | 3 | `execution/grocery_list.py` | Resolve items to real Kroger products with prices |
 | 4 | `execution/kroger_api.py cart-add` | Add approved items to Kroger cart |
+| 5 | `execution/recipe_manager.py update-used` | Update last_used date on incorporated recipes |
 
 ## Process
 
+### Step 0 (optional): Select Saved Recipes
+```bash
+python execution/recipe_manager.py list --sort last_used
+```
+- Show user their saved recipes from the Obsidian vault
+- If they want to include any, export the selected ones:
+```bash
+python execution/recipe_manager.py export --names "Recipe 1,Recipe 2" > .tmp/selected_recipes.json
+```
+
 ### Step 1: Generate Meal Plan
 ```bash
+# With selected recipes
+python execution/meal_planner.py --recipes-file .tmp/selected_recipes.json
+
+# Without saved recipes
 python execution/meal_planner.py
 ```
 - Reads `references/pcos.md` for dietary guidance
@@ -61,6 +78,13 @@ python execution/kroger_api.py cart-add --items '[{"upc":"...","quantity":1},...
 - Requires prior OAuth authorization (one-time setup via `kroger_api.py auth`)
 - Adds approved items to Kroger cart for pickup
 - **Never checkout without explicit approval**
+
+### Step 6: Update Recipe Usage
+If saved recipes from the vault were incorporated into the approved plan:
+```bash
+python execution/recipe_manager.py update-used "Recipe Name 1" "Recipe Name 2"
+```
+- Updates `last_used` in YAML frontmatter to today's date
 
 ## Outputs
 - `.tmp/meal_plan.json` - The meal plan with recipes and grocery list

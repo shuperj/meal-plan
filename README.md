@@ -70,6 +70,9 @@ python execution/meal_planner.py
 # Override config defaults
 python execution/meal_planner.py --budget 80 --meals 3
 
+# With saved recipes from your Obsidian vault
+python execution/meal_planner.py --recipes-file .tmp/selected_recipes.json
+
 # Find nearest Kroger
 python execution/kroger_api.py stores --zip 90210
 
@@ -80,6 +83,33 @@ python execution/grocery_list.py --plan .tmp/meal_plan.json --location STORE_ID
 python execution/kroger_api.py cart-add --items '[{"upc":"0001111041700","quantity":1}]'
 ```
 
+### Recipe vault
+
+Recipes are stored as markdown files in your Obsidian vault with YAML frontmatter (name, tags, created/last_used dates, servings, source).
+
+```bash
+# List saved recipes
+python execution/recipe_manager.py list --sort last_used
+
+# Filter by tag
+python execution/recipe_manager.py list --tags high-protein,pcos
+
+# Save a new recipe (body from stdin)
+echo '## Ingredients
+- 1 lb chicken
+## Instructions
+1. Cook it' | python execution/recipe_manager.py save \
+  --name "Simple Chicken" --servings 4 --tags "high-protein,quick" --source "manual"
+
+# Export recipes as JSON for the meal planner
+python execution/recipe_manager.py export --names "Simple Chicken" > .tmp/selected_recipes.json
+
+# Update last_used after a plan is approved
+python execution/recipe_manager.py update-used "Simple Chicken"
+```
+
+Set `RECIPE_VAULT_PATH` to customize the vault location (default: `~/Documents/ShuperBrain/30 Resources/Recipes`).
+
 ## Project structure
 
 ```
@@ -88,6 +118,7 @@ execution/
   meal_planner.py     # LLM meal plan generation
   grocery_list.py     # Resolve ingredients to Kroger products
   kroger_api.py       # Kroger API client (auth, stores, search, cart)
+  recipe_manager.py   # Obsidian vault recipe management
 directives/
   meal_plan.md        # Workflow SOP for AI orchestration
 references/
@@ -96,10 +127,27 @@ skills/meal-plan/
   SKILL.md            # OpenClaw skill manifest
 ```
 
+## Updating the skill in OpenClaw
+
+To pull the latest version after the skill is already installed:
+
+```bash
+cd ~/.openclaw/skills/meal-plan
+bash deploy.sh
+```
+
+Or re-run the one-liner from any directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shuperj/meal-plan/master/deploy.sh | bash
+```
+
+This re-copies all scripts, updates the SKILL.md manifest, and reinstalls dependencies. Your `config.json`, `.env`, and Kroger tokens are preserved.
+
 ## Requirements
 
 - Python 3.10+
-- `requests`, `anthropic`, `python-dotenv` (installed automatically by `deploy.sh`)
+- `requests`, `anthropic`, `python-dotenv`, `pyyaml` (installed automatically by `deploy.sh`)
 
 ## License
 

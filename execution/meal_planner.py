@@ -9,8 +9,11 @@ Usage:
     # Custom budget and preferences
     python meal_planner.py --budget 100 --meals 5 --preferences "no dairy"
 
-    # With saved recipes from a file
+    # With saved recipes from a JSON file
     python meal_planner.py --recipes-file recipes.json
+
+    # With saved recipes from Obsidian vault
+    python meal_planner.py --recipes-vault ~/Documents/ShuperBrain/30\ Resources/Recipes
 
 Output: JSON with meal_plan and grocery_list written to .tmp/meal_plan.json
 
@@ -30,6 +33,7 @@ from meal_config import load_config, load_env
 load_env()
 
 import anthropic
+from recipe_manager import load_all_recipes, recipe_to_export_dict
 
 SYSTEM_PROMPT = """You are a meal planning assistant. You create practical, budget-conscious weekly meal plans.
 
@@ -155,6 +159,9 @@ def main():
     parser.add_argument(
         "--recipes-file", help="JSON file with saved recipes to incorporate"
     )
+    parser.add_argument(
+        "--recipes-vault", help="Path to Obsidian recipe vault directory"
+    )
     parser.add_argument("--zip", help="ZIP code (from config if not set)")
     parser.add_argument("--output", help="Output file (default: .tmp/meal_plan.json)")
     args = parser.parse_args()
@@ -162,6 +169,10 @@ def main():
     saved_recipes = None
     if args.recipes_file:
         saved_recipes = json.loads(Path(args.recipes_file).read_text())
+    elif args.recipes_vault:
+        vault_recipes = load_all_recipes(Path(args.recipes_vault))
+        if vault_recipes:
+            saved_recipes = [recipe_to_export_dict(r) for r in vault_recipes]
 
     print("Generating meal plan...", file=sys.stderr)
     plan = generate_meal_plan(

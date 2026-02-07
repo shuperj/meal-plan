@@ -20,15 +20,64 @@ This prompts for: ZIP code, household size, number of meals, weekly budget, diet
 To view current config: `python execution/meal_config.py show`
 To update a single value: `python execution/meal_config.py set budget 150`
 
+## Recipe Management
+
+Recipes are saved as markdown files in the Obsidian vault at `~/Documents/ShuperBrain/30 Resources/Recipes/`. Each file has YAML frontmatter with metadata (name, created date, last used date, tags, servings, source).
+
+### List saved recipes
+```bash
+python execution/recipe_manager.py list
+```
+Filter by tags or sort:
+```bash
+python execution/recipe_manager.py list --tags high-protein,pcos --sort last_used
+```
+
+### Show a recipe
+```bash
+python execution/recipe_manager.py show "Chicken Stir Fry"
+```
+
+### Export recipes as JSON (for meal planner)
+```bash
+python execution/recipe_manager.py export --names "Chicken Stir Fry,Taco Bowl" > .tmp/selected_recipes.json
+```
+
+### Update last_used after a plan is approved
+```bash
+python execution/recipe_manager.py update-used "Chicken Stir Fry" "Taco Bowl"
+```
+
 ## Workflow
 
 When the user says `/meal-plan` (or asks for meal planning help), follow these steps in order. **Stop and ask the user before proceeding to the next step.**
 
 **Before starting:** Check if `config.json` exists by running `python execution/meal_config.py show`. If key fields (ZIP, household) are empty, ask the user to run `python execution/meal_config.py setup` first, or collect their preferences and run it for them.
 
-### 1. Generate Meal Plan
+### 1. Check Saved Recipes
+List the user's saved recipes:
+```bash
+python execution/recipe_manager.py list --sort last_used
+```
+If the vault has recipes, present them as a table:
+| Name | Tags | Last Used |
+
+Ask: "Would you like to include any saved recipes this week?"
+
+If the user selects recipes, export them:
+```bash
+python execution/recipe_manager.py export --names "Recipe 1,Recipe 2" > .tmp/selected_recipes.json
+```
+
+If the vault is empty or the user declines, skip to step 2.
+
+### 2. Generate Meal Plan
 Run the meal planner (it reads defaults from `config.json`):
 ```bash
+# With selected recipes from step 1
+python execution/meal_planner.py --recipes-file .tmp/selected_recipes.json
+
+# Without saved recipes
 python execution/meal_planner.py
 ```
 Override any config values with CLI flags if the user requests changes:
@@ -43,13 +92,13 @@ Show ingredients per recipe and the estimated total.
 
 Ask: "Does this plan look good? Any swaps?"
 
-### 2. Find Kroger Store
+### 3. Find Kroger Store
 ```bash
 python execution/kroger_api.py stores --zip <ZIP>
 ```
 Pick the nearest store. Confirm with user if multiple options.
 
-### 3. Resolve Grocery List
+### 4. Resolve Grocery List
 ```bash
 python execution/grocery_list.py --plan .tmp/meal_plan.json --location <LOCATION_ID>
 ```
@@ -62,7 +111,7 @@ Present results:
 
 Ask: "Here's your cart at $X. Want to adjust anything before I add to Kroger?"
 
-### 4. Add to Cart
+### 5. Add to Cart
 After explicit approval:
 ```bash
 python execution/kroger_api.py cart-add --items '<JSON_ARRAY>'
@@ -73,12 +122,60 @@ Confirm: "Added X items to your Kroger cart. Go to kroger.com to schedule pickup
 
 **NEVER checkout or submit an order. Only add to cart.**
 
+### 6. Update Recipe Usage
+If any saved recipes from the vault were included in the approved plan, update their `last_used` date:
+```bash
+python execution/recipe_manager.py update-used "Recipe Name 1" "Recipe Name 2"
+```
+
 ## Recipe Capture
-When the user shares a recipe (URL, text, or image):
-1. Parse and format it as Markdown
-2. Save to `~/Documents/ShuperBrain/30 Resources/Recipes/<recipe-name>.md`
-3. Use YAML frontmatter: source, tags (pcos, high-protein, low-carb, crock-pot), servings
-4. Optionally incorporate into the next meal plan
+
+When the user shares a recipe to save (outside of the /meal-plan workflow), follow these steps:
+
+### From a URL
+1. Fetch the recipe page using browser tools
+2. Extract: title, ingredients list, instructions, servings, prep time
+3. Ask the user for tags (suggest relevant ones: pcos, high-protein, low-carb, crock-pot, quick, kid-friendly, etc.)
+4. Format the body as markdown (see template below)
+5. Save to vault:
+```bash
+echo '<MARKDOWN_BODY>' | python execution/recipe_manager.py save \
+  --name "Recipe Name" \
+  --servings 4 \
+  --tags "pcos,high-protein" \
+  --prep-time 30 \
+  --source "https://example.com/recipe"
+```
+
+### From plain text or conversation
+1. Collect recipe details from the user (name, ingredients, steps)
+2. Format into markdown template
+3. Ask for tags and metadata
+4. Save using the same command above with `--source "manual"`
+
+### From the current meal plan
+If the user wants to save a recipe from the generated plan:
+1. Extract the recipe details from `.tmp/meal_plan.json`
+2. Format as markdown
+3. Save with `--source "meal-plan-YYYY-MM-DD"`
+
+### Markdown body template
+```markdown
+# Recipe Name
+
+## Ingredients
+- 1.5 lb chicken breast
+- 2 tbsp olive oil
+- 2 cups broccoli
+
+## Instructions
+1. Preheat oven to 375°F
+2. Season chicken and roast 25 min
+3. Steam broccoli
+
+## Notes
+Optional substitutions, tips, variations
+```
 
 ## First-Time Setup
 1. Run `python execution/meal_config.py setup` to configure household preferences
