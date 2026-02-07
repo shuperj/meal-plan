@@ -126,6 +126,8 @@ def load_all_recipes(vault_path):
         return []
     recipes = []
     for md_file in sorted(vault_path.glob("*.md")):
+        if md_file.name == "_Recipe Index.md":
+            continue
         content = md_file.read_text(encoding="utf-8")
         metadata, body = parse_frontmatter(content)
         recipes.append(
@@ -176,6 +178,95 @@ def recipe_to_export_dict(recipe):
         "ingredients": ingredients,
         "instructions": instructions,
     }
+
+
+# --- Index generation ---
+
+INDEX_FILENAME = "_Recipe Index.md"
+
+
+def _load_current_meal_plan(meal_plan_path=None):
+    """Load the current meal plan from JSON. Returns the meal_plan list or None."""
+    if meal_plan_path is None:
+        meal_plan_path = (
+            Path(__file__).resolve().parent.parent / ".tmp" / "meal_plan.json"
+        )
+    else:
+        meal_plan_path = Path(meal_plan_path)
+    if not meal_plan_path.exists():
+        return None
+    try:
+        data = json.loads(meal_plan_path.read_text(encoding="utf-8"))
+        return data.get("meal_plan")
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def generate_index(vault_path, meal_plan_path=None):
+    """Rebuild the _Recipe Index.md Obsidian note from scratch."""
+    recipes = [r for r in load_all_recipes(vault_path) if r["metadata"].get("name")]
+    today = date.today().isoformat()
+
+    lines = [
+        "---",
+        'name: "Recipe Index"',
+        "auto_generated: true",
+        f'updated: "{today}"',
+        "---",
+        "",
+        "# Recipe Index",
+        "",
+    ]
+
+    # This Week's Meals
+    meal_plan = _load_current_meal_plan(meal_plan_path)
+    if meal_plan:
+        lines.append("## This Week's Meals")
+        lines.append("")
+        lines.append("| Day | Dinner |")
+        lines.append("|-----|--------|")
+        for entry in meal_plan:
+            day = entry.get("day", "")
+            dinner_name = entry.get("dinner", {}).get("name", "")
+            lines.append(f"| {day} | [[{dinner_name}]] |")
+        lines.append("")
+
+    # By Tag
+    tag_map = {}
+    for recipe in recipes:
+        name = recipe["metadata"].get("name", "")
+        tags = recipe["metadata"].get("tags", [])
+        for tag in tags:
+            tag_map.setdefault(tag, []).append(name)
+
+    if tag_map:
+        lines.append("## By Tag")
+        lines.append("")
+        for tag in sorted(tag_map.keys()):
+            lines.append(f"### {tag}")
+            for name in sorted(tag_map[tag]):
+                lines.append(f"- [[{name}]]")
+            lines.append("")
+
+    # All Recipes
+    if recipes:
+        lines.append("## All Recipes")
+        lines.append("")
+        for recipe in sorted(
+            recipes, key=lambda r: r["metadata"].get("name", "").lower()
+        ):
+            name = recipe["metadata"].get("name", "")
+            tags = recipe["metadata"].get("tags", [])
+            tag_str = ", ".join(tags)
+            if tag_str:
+                lines.append(f"- [[{name}]] — {tag_str}")
+            else:
+                lines.append(f"- [[{name}]]")
+        lines.append("")
+
+    index_path = vault_path / INDEX_FILENAME
+    index_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Updated recipe index: {index_path}", file=sys.stderr)
 
 
 # --- Subcommands ---
@@ -264,6 +355,8 @@ def cmd_save(args):
     print(f"Saved: {file_path}", file=sys.stderr)
     print(json.dumps({"file_path": str(file_path), "name": args.name}))
 
+    generate_index(vault_path)
+
 
 def cmd_export(args):
     vault_path = get_vault_path()
@@ -303,6 +396,16 @@ def cmd_update_used(args):
         )
         print(f"Updated last_used: {name} -> {today}", file=sys.stderr)
 
+    generate_index(vault_path)
+
+
+def cmd_update_index(args):
+    vault_path = get_vault_path()
+    meal_plan_path = (
+        args.meal_plan if hasattr(args, "meal_plan") and args.meal_plan else None
+    )
+    generate_index(vault_path, meal_plan_path=meal_plan_path)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Recipe vault manager")
@@ -337,6 +440,12 @@ def main():
     update_p = sub.add_parser("update-used", help="Update last_used date")
     update_p.add_argument("names", nargs="+", help="Recipe names to update")
 
+    # update-index
+    index_p = sub.add_parser("update-index", help="Generate/update recipe index note")
+    index_p.add_argument(
+        "--meal-plan", help="Path to meal_plan.json (default: .tmp/meal_plan.json)"
+    )
+
     args = parser.parse_args()
     commands = {
         "list": cmd_list,
@@ -344,6 +453,7 @@ def main():
         "save": cmd_save,
         "export": cmd_export,
         "update-used": cmd_update_used,
+        "update-index": cmd_update_index,
     }
 
     if args.command in commands:

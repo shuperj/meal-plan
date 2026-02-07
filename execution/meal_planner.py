@@ -52,7 +52,7 @@ Output ONLY valid JSON matching this schema:
         "name": "Recipe Name",
         "servings": 4,
         "prep_time_min": 30,
-        "tags": ["high-protein", "low-carb"],
+        "tags": ["high-protein", "skillet", "mexican", "sheet-pan"],
         "ingredients": [
           {"item": "chicken breast", "quantity": 1.5, "unit": "lb"},
           {"item": "broccoli", "quantity": 2, "unit": "cups"}

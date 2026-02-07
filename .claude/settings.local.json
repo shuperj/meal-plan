@@ -8,7 +8,8 @@
       "WebFetch(domain:github.com)",
       "mcp__acp__Edit",
       "mcp__acp__Bash",
-      "WebFetch(domain:docs.openclaw.ai)"
+      "WebFetch(domain:docs.openclaw.ai)",
+      "mcp__acp__Write"
     ]
   }
 }

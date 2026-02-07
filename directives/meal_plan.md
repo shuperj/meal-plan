@@ -23,6 +23,7 @@ All defaults are loaded from `config.json` (run `python execution/meal_config.py
 | 3 | `execution/grocery_list.py` | Resolve items to real Kroger products with prices |
 | 4 | `execution/kroger_api.py cart-add` | Add approved items to Kroger cart |
 | 5 | `execution/recipe_manager.py update-used` | Update last_used date on incorporated recipes |
+| 5 | `execution/recipe_manager.py update-index` | Regenerate Obsidian recipe index note (auto-runs on save/update-used) |
 
 ## Process
 

@@ -48,6 +48,13 @@ python execution/recipe_manager.py export --names "Chicken Stir Fry,Taco Bowl" >
 python execution/recipe_manager.py update-used "Chicken Stir Fry" "Taco Bowl"
 ```
 
+### Update recipe index
+Regenerate the Obsidian recipe index note (`_Recipe Index.md`) with tag-based sections and this week's meals:
+```bash
+python execution/recipe_manager.py update-index
+```
+This runs automatically when recipes are saved or `update-used` is called.
+
 ## Workflow
 
 When the user says `/meal-plan` (or asks for meal planning help), follow these steps in order. **Stop and ask the user before proceeding to the next step.**
@@ -92,6 +99,15 @@ Show ingredients per recipe and the estimated total.
 
 Ask: "Does this plan look good? Any swaps?"
 
+Once the user approves the plan, present next steps:
+
+"Your plan is locked in! Here's what we can do next:"
+- **Save new recipes to Obsidian** — Save any new (non-vault) recipes from this plan to your recipe vault
+- **Proceed to Kroger** — Find your store, get real prices, and add to cart
+- **Both** — Save recipes first, then proceed to Kroger
+
+If the user wants to save recipes, follow the "Recipe Capture > From the current meal plan" steps for each new recipe before continuing to Step 3. Only offer to save recipes that are NEW (not ones already selected from the vault in Step 1).
+
 ### 3. Find Kroger Store
 ```bash
 python execution/kroger_api.py stores --zip <ZIP>
@@ -127,6 +143,7 @@ If any saved recipes from the vault were included in the approved plan, update t
 ```bash
 python execution/recipe_manager.py update-used "Recipe Name 1" "Recipe Name 2"
 ```
+This also auto-updates the `_Recipe Index.md` note in the vault with the current week's meals and tag index.
 
 ## Recipe Capture
 
@@ -135,7 +152,7 @@ When the user shares a recipe to save (outside of the /meal-plan workflow), foll
 ### From a URL
 1. Fetch the recipe page using browser tools
 2. Extract: title, ingredients list, instructions, servings, prep time
-3. Ask the user for tags (suggest relevant ones: pcos, high-protein, low-carb, crock-pot, quick, kid-friendly, etc.)
+3. Ask the user for tags (suggest relevant ones: pcos, high-protein, low-carb, crock-pot, quick, kid-friendly, skillet, mexican, sheet-pan, etc.)
 4. Format the body as markdown (see template below)
 5. Save to vault:
 ```bash
