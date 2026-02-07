@@ -69,7 +69,7 @@ def load_env():
                 .get("env", {})
             )
             for key, value in env_vars.items():
-                if value and key not in os.environ:
+                if value and not os.environ.get(key):
                     os.environ[key] = value
         except (json.JSONDecodeError, KeyError):
             pass
