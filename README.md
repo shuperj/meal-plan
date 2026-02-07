@@ -22,6 +22,34 @@ cd meal-plan
 bash deploy.sh
 ```
 
+After installing, restart the gateway to load the new skill:
+
+```bash
+openclawd gateway restart
+```
+
+## Updating
+
+Re-run the install one-liner from any directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shuperj/meal-plan/master/deploy.sh | bash
+```
+
+Or if you have the repo cloned locally:
+
+```bash
+cd ~/meal-plan && git pull && bash deploy.sh
+```
+
+This re-copies all scripts, updates the SKILL.md manifest, and reinstalls dependencies. Your `config.json`, `.env`, and Kroger tokens are preserved.
+
+Restart the gateway after updating:
+
+```bash
+openclawd gateway restart
+```
+
 ## Setup
 
 ### 1. Get API keys
@@ -126,23 +154,6 @@ references/
 skills/meal-plan/
   SKILL.md            # OpenClaw skill manifest
 ```
-
-## Updating the skill in OpenClaw
-
-To pull the latest version after the skill is already installed:
-
-```bash
-cd ~/.openclaw/skills/meal-plan
-bash deploy.sh
-```
-
-Or re-run the one-liner from any directory:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/shuperj/meal-plan/master/deploy.sh | bash
-```
-
-This re-copies all scripts, updates the SKILL.md manifest, and reinstalls dependencies. Your `config.json`, `.env`, and Kroger tokens are preserved.
 
 ## Requirements
 
