@@ -4,9 +4,10 @@ AI-powered weekly meal planner that generates recipes, builds a grocery list wit
 
 ## What it does
 
-1. **Generates a meal plan** tailored to your household size, budget, and dietary preferences using Claude
-2. **Resolves ingredients** against the Kroger product catalog at your nearest store with real prices
-3. **Adds items to your Kroger cart** for pickup (never checks out without your approval)
+1. **Saves recipes** as markdown files in your Obsidian vault with YAML frontmatter (tags, dates, source)
+2. **Generates a meal plan** tailored to your household size, budget, and dietary preferences using Claude — optionally incorporating saved recipes from your vault
+3. **Resolves ingredients** against the Kroger product catalog at your nearest store with real prices
+4. **Adds items to your Kroger cart** for pickup (never checks out without your approval)
 
 ## Quick install
 
@@ -113,7 +114,9 @@ python execution/kroger_api.py cart-add --items '[{"upc":"0001111041700","quanti
 
 ### Recipe vault
 
-Recipes are stored as markdown files in your Obsidian vault with YAML frontmatter (name, tags, created/last_used dates, servings, source).
+Recipes are stored as markdown files in your [Obsidian](https://obsidian.md) vault with YAML frontmatter (name, tags, created/last_used dates, servings, source). The default path is `~/Documents/ShuperBrain/30 Resources/Recipes/` — set `RECIPE_VAULT_PATH` in your `.env` or OpenClaw config to use a different location.
+
+**Important**: `RECIPE_VAULT_PATH` should point to the exact folder where you want recipes saved, not just the vault root. For example: `/home/user/ObsidianVault/Recipes/`, not `/home/user/ObsidianVault/`.
 
 ```bash
 # List saved recipes
@@ -136,7 +139,7 @@ python execution/recipe_manager.py export --names "Simple Chicken" > .tmp/select
 python execution/recipe_manager.py update-used "Simple Chicken"
 ```
 
-Set `RECIPE_VAULT_PATH` to customize the vault location (default: `~/Documents/ShuperBrain/30 Resources/Recipes`).
+Recipes are viewable and editable directly in Obsidian. The YAML frontmatter is fully compatible with Obsidian properties, and you can use Obsidian's tag search, dataview queries, or daily notes to organize and discover your recipe collection.
 
 ## Project structure
 
